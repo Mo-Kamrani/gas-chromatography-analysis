@@ -57,7 +57,7 @@ class AnalysisTests(unittest.TestCase):
     def test_nonfinite_and_duplicate_time_are_rejected(self):
         for time, signal in (([0, 1, 1], [1, 2, 3]), ([0, np.nan, 2], [1, 2, 3]), ([0, 1, 2], [1, np.inf, 3])):
             with self.subTest(time=time, signal=signal), self.assertRaises(ValueError):
-                namespace['validate_signal'](time, signal)
+                namespace['validate_chromatogram'](time, signal)
 
     def test_normalization_uses_window_maximum(self):
         time, normalized = namespace['normalize_signal']([0, 1, 2, 3], [1000, 2, 4, -1], 1, 3)

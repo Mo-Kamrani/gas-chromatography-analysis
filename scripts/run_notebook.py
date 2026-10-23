@@ -72,7 +72,7 @@ def main():
     notebook.metadata.execution_environment = {
         'engine': 'Sequential Python cells with headless Matplotlib (not a Jupyter kernel)',
         'python': platform.python_version(),
-        **{name: importlib.metadata.version(name) for name in ('numpy', 'matplotlib', 'nbformat')},
+        **{name: importlib.metadata.version(name) for name in ('numpy', 'matplotlib', 'scipy', 'nbformat')},
     }
     nbformat.validate(notebook)
     temporary_path = path.with_suffix('.executed.ipynb')

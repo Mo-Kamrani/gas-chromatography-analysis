@@ -1,82 +1,92 @@
 # Gas Chromatography Analysis
 
-A step-by-step Python notebook for parsing a **LabSolutions gas chromatography export**, checking data integrity, and visualizing chromatograms and instrument-reported compound profiles.
+A step-by-step Python notebook for **LabSolutions gas chromatography exports**: validated parsing, visualization, baseline correction, peak detection, and signed numerical integration.
 
 [Open the executed notebook](gas_chromatography.ipynb)
 
-![Chromatogram between 4 and 16 minutes](results/Gaschroma_zoom.png)
+![Signed corrected signal and disjoint integration regions](results/Gaschroma_preprocessing_integration.png)
 
-## What the notebook shows
+## Analysis workflow
 
-| View | Purpose | Interpretation |
-| --- | --- | --- |
-| Full chromatogram | Inspect the complete recorded run | Original detector intensities |
-| Zoomed chromatogram | Resolve the smaller peaks from 4 to 16 minutes | Original intensities with a local display scale |
-| Normalized trace / overlay | Compare signal shapes within a common window | Intensity divided by that window's maximum |
-| Compound bars | Rank the largest reported compound percentages | Top 12 values, without renormalizing the subset |
-| Compound heatmap | Inspect every compound positive in at least one sample | One shared scale; missing values remain distinct from zero |
+1. Parse and validate the raw signal and the instrument's compound summary.
+2. Plot the full chromatogram and the 4–16 minute detail.
+3. Display a maximum-normalized trace, compound bars, and a compound heatmap.
+4. Locate a dominant early-peak candidate and check sustained recovery before selecting the analysis region.
+5. Select background candidates and fit a polynomial baseline with `np.polyfit` / `np.polyval`; asymmetric least squares is also available.
+6. Subtract the estimated baseline from the **unsmoothed measurements**, preserving signed negative values.
+7. Detect peak candidates on a separate Savitzky–Golay-smoothed copy.
+8. Set integration boundaries within disjoint inter-peak valley partitions and flag uncertain regions.
+9. Integrate the signed, unsmoothed corrected signal using the trapezoidal rule or Simpson's rule.
+10. Export diagnostic figures, signal and peak tables, and a complete method summary.
 
-The included file is **one real sample**, labeled `231221_C37` in its instrument metadata. Reference oils and mixtures are not supplied. The overlay and heatmap therefore show one sample until additional measured exports are configured.
+The example contains **one measured sample**, labeled `231221_C37` by the instrument. Reference oils and mixtures are not supplied. Additional measured exports can be configured in `SAMPLE_FILES` for profile comparisons.
 
-## Quick start
+## Run the project
 
-Use **Python 3.12**. From the project root, install the pinned dependencies and execute the notebook:
+Use **Python 3.12**. From the project root:
 
 ```bash
 python -m pip install -r requirements.txt
 python scripts/run_notebook.py
 ```
 
-The runner executes the notebook's plain Python cells in order, saves their printed output and figures into the notebook, and writes five PNG files to `results/`. It uses headless Matplotlib and does not need a running Jupyter server. It is specific to this notebook's Python and Matplotlib workflow, rather than a general Jupyter execution engine.
+The runner executes all **21 Python code cells** sequentially, captures printed output and Matplotlib figures in the notebook, and generates the result files. It uses headless Matplotlib and does not require a Jupyter server. It supports this notebook's plain Python and plotting workflow rather than arbitrary IPython magics or rich-display extensions.
 
-For interactive use, open `gas_chromatography.ipynb` in your Jupyter interface, select a Python environment containing NumPy and Matplotlib, and run from top to bottom. Keep the kernel's working directory at the project root.
+For interactive use, open `gas_chromatography.ipynb` in your Jupyter interface, select an environment containing the required packages, and run every cell in order. Keep the kernel working directory at the project root so that `data/Gaschroma.txt` resolves correctly.
 
-## Project files
+The tested direct dependency versions are pinned in `requirements.txt`; the notebook also records the execution environment in its metadata.
 
-| Path | Contents |
+## Results and project files
+
+| File | Contents |
 | --- | --- |
-| `gas_chromatography.ipynb` | Explained analysis, reusable functions, and saved results |
+| `gas_chromatography.ipynb` | 48 explained cells, including 21 code cells and 10 embedded figures |
 | `data/Gaschroma.txt` | Supplied instrument export, preserved byte for byte |
-| `results/` | Five generated PNG figures |
-| `requirements.txt` | Tested direct dependency versions |
-| `scripts/run_notebook.py` | Reproducible headless execution |
-| `tests/test_notebook.py` | Parser, normalization, and comparison regression checks |
+| `results/Gaschroma_full.png`, `Gaschroma_zoom.png`, `Gaschroma_normalized_overlay.png`, `Gaschroma_compound_bars.png`, `Gaschroma_compound_heatmap.png` | Five original visualization views |
+| `results/Gaschroma_preprocessing_*.png` | Five diagnostics: early peak, baseline, negative values, peak candidates, and integration |
+| `results/Gaschroma_preprocessing_signal.csv` | All raw measurements, selection flags, baseline-fit flags, and derived signals |
+| `results/Gaschroma_preprocessing_peak_candidates.csv` | Numbered maxima, prominence, and half-prominence widths |
+| `results/Gaschroma_preprocessing_integration.csv` | Integration boundaries, signed areas, and overlap/boundary review flags |
+| `results/Gaschroma_preprocessing_summary.json` | Parameters, decisions, polynomial coefficients and coordinate transform, diagnostics, and totals |
+| `scripts/run_notebook.py` | Headless execution and output capture |
+| `tests/` | Parser and numerical regression checks |
 
-## Data checks
+The signal CSV retains all 25,500 measurements. Derived values are blank outside the selected analysis region. Areas are exported in signal × minute and signal × second; the physical detector signal unit is not specified in the instrument export.
 
-| Measurement | Included export |
+## Results for the supplied export
+
+These values use the configured **cubic polynomial**, automatic background-point selection, and trapezoidal integration.
+
+| Quantity | Result |
 | --- | ---: |
-| Signal points | 25,500 |
+| Raw signal points | 25,500 |
 | First / last recorded time | 0.00017 / 16.99950 min |
-| Nominal end time in metadata | 17 min |
-| Signal points from 4 to 16 min | 18,000 |
-| Detected peaks in the instrument peak table | 65 |
-| Compound rows | 35 |
-| Compounds with positive reported percentages | 31 |
+| Instrument peak-table entries | 65 |
+| Instrument compound-summary rows | 35 |
+| Positive reported compound percentages | 31 |
 | Sum of reported compound percentages | 100.000% |
+| Early candidate apex | 1.70883 min |
+| First analysis point | 2.63817 min |
+| Analysis points | 21,543 |
+| Selected background candidates | 3,385 |
+| Selected-point baseline RMSE | 183.714 signal units |
+| Signal candidates / disjoint integration regions | 32 |
+| Peaks flagged for overlap / boundary review | 2 / 9 |
+| Raw / signed corrected negative values | 3,070 / 7,191 |
 
-Signal points, detected peaks, and compound rows describe different objects. The instrument's peak table includes unassigned peaks and multiple peaks assigned to the same compound. The notebook reads the compound summary directly; it does not reintegrate the raw signal or reconstruct concentrations from the peak table.
+Raw signal points, instrument-detected peaks, named compound rows, and newly detected candidates describe different objects. Their counts need not match. The analysis region extends to the last recorded point, independently of the 4–16 minute display window.
 
-## Configuration
+## Configuration and interpretation
 
-Edit the first code cell to change the input file, display window, output directory, or sample dictionary. Paths are relative to the project root. Additional exports must follow the same section and column format.
+The first code cell contains paths, display settings, sample files, and `PREPROCESSING_SETTINGS`. The early-peak return threshold and its quiet reference interval are operational choices that should be checked in the diagnostic. A dominant early peak is a candidate, not a chemical identification.
 
-The bar chart and heatmap offer two distinct metrics:
+The default baseline is a degree-3 polynomial fitted to low-signal candidates within time bins. Manual intervals or observed-time anchors can replace automatic selection. Coefficients are stored in descending powers of centered, scaled time, with the transformation recorded in JSON. The selected-point RMSE measures fit to those candidates and does not validate the physical background. The baseline diagnostic exposes remaining deviations; some points lie outside the fitted-point span.
 
-- **`reported_percent`**: use the exported `Conc. %` values directly.
-- **`area_percent`**: divide each named compound's area by the sum of areas in the **Compound Results** table. Unassigned peaks outside that table are excluded from this denominator.
+Only the detection and boundary-search copy is smoothed. Original and baseline-corrected measurement arrays retain signed negatives; neither absolute-value rectification nor zero clipping is applied. Filtered preprocessing requires nearly uniform time spacing and rejects irregular sampling instead of silently resampling.
 
-The normalized overlay scales each trace by its maximum **inside the selected window**. Every sample must cover that complete window. Negative detector values are preserved, and no smoothing, baseline subtraction, or retention-time alignment is applied.
+Inter-peak minima cap neighboring integration regions, preventing repeated integration of a time interval. This partition does **not** deconvolve coeluting components. Elevated valleys and uncertain returns are flagged for review, and unresolved shoulders may never produce separate detected maxima. Candidate areas are uncalibrated signal areas, not concentrations or compound assignments.
 
-The parsers reject missing or duplicated sections, incomplete tables, invalid numbers, duplicate compound identifiers, and non-increasing retention times. Duplicate file paths and byte-identical copies cannot be labeled as independent samples.
-
-## Scientific interpretation
-
-Peak positions support comparison under compatible analytical conditions; matching retention times alone do not establish identity because compounds may coelute. Quantitative interpretation depends on calibration and detector response. Maximum-normalized intensity, uncorrected area share, instrument-reported compound percentage, and oil mixing fraction are different quantities.
-
-Combined report labels such as `C18:1 cis/trans` are preserved. The export contains calibration coefficients, but this notebook does not validate the calibration, identify an oil, estimate mixture proportions, or infer chemical absence from a reported zero. The physical signal unit is not specified by the export.
-
-Reference: [Shimadzu — Analysis results of GC](https://www.shimadzu.eu/service-support/technical-support/analysis-basics/fundamentals/results.html).
+The original compound bars and heatmap remain based on the instrument's `Conc. %` values. The optional `area_percent` mode uses the sum of areas in the **Compound Results** table; unassigned peaks outside that table are excluded. Neither metric is an oil mixing fraction. Combined labels such as `C18:1 cis/trans` remain intact, and missing entries remain distinct from explicit zeros.
 
 ## Verification
 
@@ -84,4 +94,6 @@ Reference: [Shimadzu — Analysis results of GC](https://www.shimadzu.eu/service
 python -m unittest discover -s tests -v
 ```
 
-Publication checks cover the real export, malformed and incomplete data, normalization limits, missing-versus-zero values, duplicate sample files, and preservation of source arrays. All 11 code cells were executed sequentially with headless Matplotlib, and all five figures were regenerated from the supplied data. Recorded execution versions are included in the notebook metadata.
+All **24 tests pass**. Checks cover incomplete and invalid exports, duplicate files, missing-versus-zero values, signed negatives, a known quadratic baseline, manual background selection, irregular sampling, early-recovery decisions, the AsLS alternative, and exported raw data. Numerical fixtures check both integration methods, isolated Gaussian area error below 0.25%, and equality between summed overlapping-peak partitions and their union area. These checks validate implementation behavior, not calibration or component-specific areas in an overlap.
+
+References: [Shimadzu — Analysis results of GC](https://www.shimadzu.eu/service-support/technical-support/analysis-basics/fundamentals/results.html), [NumPy polynomial fitting](https://numpy.org/doc/stable/reference/generated/numpy.polyfit.html), [SciPy peak detection](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html), and [SciPy trapezoidal integration](https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.trapezoid.html).
